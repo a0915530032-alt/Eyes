@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eyes</title>
+    <style>
+        :root {
+            --text-color: #2C2C2C;
+            --card-bg: rgba(255, 255, 255, 0.85);
+            --accent-color: #4A6FA5;
+        }
+        
+        body {
+            margin: 0; padding: 0;
+            color: var(--text-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex; justify-content: center; align-items: center;
+            min-height: 100vh; overflow: hidden;
+            background-position: center; background-repeat: no-repeat; background-size: cover;
+            transition: background-image 2s ease;
+            background-color: #000;
+        }
+
+        .overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0); pointer-events: none;
+            transition: background 2s ease; z-index: 1;
+        }
+
+        .container {
+            width: 90%; max-width: 500px;
+            background: var(--card-bg); padding: 35px 30px;
+            border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            transition: all 1.5s ease; position: relative; z-index: 2;
+            backdrop-filter: blur(8px);
+        }
+
+        .progress-bar { width: 100%; height: 4px; background: rgba(0,0,0,0.1); border-radius: 2px; margin-bottom: 25px; overflow: hidden; }
+        .progress { width: 0%; height: 100%; background: var(--accent-color); transition: width 0.5s ease; }
+        
+        h2 { font-size: 1.2rem; margin-bottom: 25px; line-height: 1.6; word-break: break-all; }
+        .options { display: flex; flex-direction: column; gap: 12px; }
+        
+        button {
+            background: rgba(255,255,255,0.8); border: 1px solid #D0D0D0;
+            padding: 14px 20px; border-radius: 8px; text-align: left;
+            font-size: 0.95rem; cursor: pointer; color: inherit;
+            transition: all 0.2s ease; font-weight: 500; line-height: 1.4;
+        }
+        button:hover { border-color: var(--accent-color); background: rgba(255,255,255,1); transform: translateY(-1px); }
+
+        .input-area { display: flex; flex-direction: column; gap: 15px; margin-top: 15px; }
+        input[type="text"] {
+            background: rgba(0,0,0,0.6); border: 1px solid #666; padding: 12px; border-radius: 6px; color: #FFF; font-size: 1rem; outline: none; text-align: center;
+        }
+        #chat-response { font-size: 1.1rem; color: #FF3B30; min-height: 24px; font-weight: bold; text-align: center; margin-top: 15px; line-height: 1.5; }
+
+        .glitch { animation: glitch-anim 0.2s infinite; }
+        @keyframes glitch-anim {
+            0% { transform: translate(0) }
+            20% { transform: translate(-4px, 3px) }
+            40% { transform: translate(-3px, -3px) }
+            60% { transform: translate(4px, 2px) }
+            100% { transform: translate(0) }
+        }
+    </style>
+</head>
+<body>
+
+<div class="overlay" id="bg-overlay"></div>
+
+<div class="container" id="game-card">
+    <div class="progress-bar"><div class="progress" id="progress"></div></div>
+    <div id="content"></div>
+</div>
+
+<script>
+    // 內建免音檔音效
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playClickSound(freq, duration) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + duration);
+    }
+
+    // 《Eyes》劇本資料庫
+    const script = [
+        {
+            // Q1: 正常
+            bgImage: "https://unsplash.com",
+            overlay: "rgba(0, 0, 0, 0)", text: "#2C2C2C", cardBg: "rgba(255, 255, 255, 0.85)", accent: "#4A6FA5", progress: "20%",
+            question: "Q1. 你覺得最讓人安心的社交距離是？",
+            options: ["保持安全距離，慢慢熟悉。", "頻繁見面，毫無保留地分享生活。", "只要對方主動，怎樣都可以。", "其實...我更喜歡默默在遠處注視著對方。"]
+        },
+        {
+            // Q2: 變暗
+            bgImage: "https://unsplash.com",
+            overlay: "rgba(0, 0, 0, 0.3)", text: "#2C2C2C", cardBg: "rgba(255, 255, 255, 0.75)", accent: "#8B4513", progress: "40%",
+            question: "Q2. 最近回家時，總覺得背後有視線，你的第一直覺是？",
+            options: ["只是下班/下課太累，自己疑神疑鬼。", "可能是熟人想惡作劇，回頭確認看看。", "加快腳步，立刻打電話給朋友求助。", "無所謂，反正如果是「他」的話就沒關係。"]
+        },
+        {
+            // Q3: 壓抑
+            bgImage: "https://unsplash.com",
+            overlay: "rgba(0, 0, 0, 0.6)", text: "#E0E0E0", cardBg: "rgba(30, 30, 35, 0.85)", accent: "#A85757", progress: "66%",
+            question: "Q3. 當你在房間上網時，如果感覺到窗外有黑影閃過，你會？",
+            options: ["立刻把窗簾拉上，檢查門窗是否鎖好。", "覺得是樹枝陰影，不以為意地繼續滑手機。", "勇敢走過去開窗查看究竟。", "我早就知道，窗戶根本沒有鎖緊。"]
+        },
+        {
+            // Q4: 監視器紅點
+            bgImage: "https://unsplash.com",
+            overlay: "rgba(15, 0, 0, 0.7)", text: "#FF3B30", cardBg: "rgba(15, 5, 5, 0.9)", accent: "#FF0000", progress: "85%",
+            question: "Q4. 你知道...你現在用的這台設備，鏡頭其實一直開著嗎？",
+            options: ["這只是心理測驗的特效，嚇不倒我的。", "⋯⋯你到底是誰？為什麼會知道？", "（下意識用手指遮住視訊鏡頭）", "沒關係，你想看的話，就繼續看吧。"]
+        },
+        {
+            // Q5: 終局
+            bgImage: "https://unsplash.com",
+            overlay: "rgba(0, 0, 0, 0.95)", text: "#FF0000", cardBg: "rgba(0, 0, 0, 1)", accent: "#FF0000", progress: "100%",
+            question: "👁️ 《Eyes》<br><br>「我很喜歡你今天穿的衣服喔。」<br><br>現在，對著螢幕，叫一次我的名字。",
+            type: "input"
+        }
+    ];
+
+    let currentStep = 0;
+
+    function renderStep() {
+        const data = script[currentStep];
+        
+        document.body.style.backgroundImage = `url('${data.bgImage}')`;
+        document.getElementById('bg-overlay').style.background = data.overlay;
+        document.documentElement.style.setProperty('--text-color', data.text);
+        document.documentElement.style.setProperty('--card-bg', data.cardBg);
+        document.documentElement.style.setProperty('--accent-color', data.accent);
+        document.getElementById('progress').style.width = data.progress;
+
+        const contentDiv = document.getElementById('content');
+        
+        if (data.type === "input") {
+            contentDiv.innerHTML = `
+                <h2>${data.question}</h2>
+                <div class="input-area">
+                    <input type="text" id="player-input" placeholder="輸入他的名字..." autocomplete="off">
+                    <button id="submit-btn" style="text-align:center; border-color:var(--accent-color);">回應他</button>
+                    <div id="chat-response"></div>
+                </div>
+            `;
+            document.getElementById('submit-btn').addEventListener('click', handleEnding);
+        } else {
+            let optionsHTML = data.options.map(opt => `<button class="opt-btn">${opt}</button>`).join('');
+            contentDiv.innerHTML = `
+                <h2>${data.question}</h2>
+                <div class="options">${optionsHTML}</div>
+            `;
+            document.querySelectorAll('.opt-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    // 越後面點擊聲越低沉詭異
+                    playClickSound(120 - (currentStep * 20), 0.3);
+                    currentStep++;
+                    renderStep();
+                });
+            });
+        }
+    }
+
+    function handleEnding() {
+        const inputVal = document.getElementById('player-input').value.trim();
+        const responseDiv = document.getElementById('chat-response');
+        const card = document.getElementById('game-card');
+        
+        playClickSound(50, 0.6);
+        card.classList.add('glitch');
+        setTimeout(() => card.classList.remove('glitch'), 250);
+
+        if (inputVal === "") {
+            responseDiv.innerText = "名字都不敢叫，你在害怕嗎？我明明每天都在叫你的名字。";
+        } else if (inputVal.toLowerCase() === "eyes") {
+            responseDiv.innerText = "猜對了。既然你叫了我的名字，那現在換我過去找你了。";
+        } else {
+            responseDiv.innerText = `「${inputVal}」？那是誰？你竟然背著我記住別人的名字？\n\n別動，我現在就去確認。`;
+        }
+    }
+
+    renderStep();
+</script>
+</body>
+</html>
